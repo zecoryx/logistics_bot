@@ -29,8 +29,8 @@ logger = logging.getLogger(__name__)
  CHANGE_PHONE, APPEAL_TITLE, APPEAL_DESC) = range(7)
 
 # Sozlamalar .env dan
-BACKEND_URL = os.getenv("BACKEND_URL", "http://192.168.100.97:3000/api/auth")
-ADMIN_GROUP_ID = os.getenv("ADMIN_GROUP_ID", "-5032833016")
+BACKEND_URL = os.getenv("BACKEND_URL")
+ADMIN_GROUP_ID = os.getenv("ADMIN_GROUP_ID")
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 
 # Database fayli

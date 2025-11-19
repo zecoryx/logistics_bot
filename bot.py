@@ -121,8 +121,8 @@ init_db()
 TRANSLATIONS = {
     'uz': {
         'welcome': "👋 Xush kelibsiz!\n\nIltimos, tilni tanlang:",
-        'send_phone': "📱 Telefon raqamingizni kiriting\n\n💡 Masalan: +998901234567",
-        'send_password': "🔐 Parolingizni kiriting:",
+        'send_phone': "📱 Ilovadan ro'yhatdan o'tgan telefon raqamingizni kiriting\n\n💡 Masalan: +99890XXXXXXX",
+        'send_password': "🔐 Ilovadan ro'yhatdan o'tgan Parolingizni kiriting:",
         'login_success': "✅ Xush kelibsiz!\n\nSiz tizimga muvaffaqiyatli kirdingiz.",
         'login_failed': "❌ Xatolik!\n\nTelefon raqam yoki parol noto'g'ri.\n\nIltimos, qaytadan urinib ko'ring.",
         'connection_error': "⚠️ Serverga ulanishda xatolik!\n\nIltimos, keyinroq qayta urinib ko'ring.",
@@ -132,7 +132,7 @@ TRANSLATIONS = {
         'contact_admin': "📨 Adminga murojaat",
         'settings': "⚙️ Sozlamalar",
         'back': "🔙 Orqaga",
-        'enter_new_phone': "📱 Yangi telefon raqamingizni kiriting:\n\n💡 Masalan: +998901234567",
+        'enter_new_phone': "📱 Yangi telefon raqamingizni kiriting:\n\n💡 Masalan: +99890XXXXXXX",
         'phone_updated': "✅ Raqam yangilandi!\n\nYangi raqamingiz muvaffaqiyatli saqlandi.",
         'enter_appeal_title': "📝 Murojaat sarlavhasini kiriting:\n\n💡 Qisqa va aniq yozing",
         'enter_appeal_desc': "📄 Murojaat matnini kiriting:\n\n💡 Batafsil yozing",
@@ -144,14 +144,14 @@ TRANSLATIONS = {
         'ru': "🇷🇺 Русский",
         'en': "🇬🇧 English",
         'user_info': "👤 Profil ma'lumotlari\n\n📱 Telefon: {}\n🌐 Til: {}\n📅 Sana: {}",
-        'invalid_phone': "❌ Noto'g'ri format!\n\nIltimos, to'g'ri telefon raqam kiriting.\nMasalan: +998901234567",
+        'invalid_phone': "❌ Noto'g'ri format!\n\nIltimos, to'g'ri telefon raqam kiriting.\nMasalan: +99890XXXXXXX",
         'welcome_back': "👋 Xush kelibsiz, {}!\n\nSiz allaqachon tizimga kirgansiz.",
         'logout_success': "✅ Siz tizimdan muvaffaqiyatli chiqdingiz.\n\nQaytadan kirish uchun /start ni bosing.",
         'language_changed': "Til muvaffaqiyatli o'zgartirildi!"
     },
     'ru': {
         'welcome': "👋 Добро пожаловать!\n\nПожалуйста, выберите язык:",
-        'send_phone': "📱 Введите ваш номер телефона\n\n💡 Например: +998901234567",
+        'send_phone': "📱 Введите ваш номер телефона\n\n💡 Например: +99890XXXXXXX",
         'send_password': "🔐 Введите ваш пароль:",
         'login_success': "✅ Добро пожаловать!\n\nВы успешно вошли в систему.",
         'login_failed': "❌ Ошибка!\n\nНеверный номер телефона или пароль.\n\nПожалуйста, попробуйте снова.",
@@ -162,7 +162,7 @@ TRANSLATIONS = {
         'contact_admin': "📨 Связаться с админом",
         'settings': "⚙️ Настройки",
         'back': "🔙 Назад",
-        'enter_new_phone': "📱 Введите новый номер телефона:\n\n💡 Например: +998901234567",
+        'enter_new_phone': "📱 Введите новый номер телефона:\n\n💡 Например: +99890XXXXXXX",
         'phone_updated': "✅ Номер обновлен!\n\nВаш новый номер успешно сохранен.",
         'enter_appeal_title': "📝 Введите заголовок обращения:\n\n💡 Кратко и ясно",
         'enter_appeal_desc': "📄 Введите текст обращения:\n\n💡 Подробно опишите вашу проблему",
@@ -174,14 +174,14 @@ TRANSLATIONS = {
         'ru': "🇷🇺 Русский",
         'en': "🇬🇧 English",
         'user_info': "👤 Информация профиля\n\n📱 Телефон: {}\n🌐 Язык: {}\n📅 Дата: {}",
-        'invalid_phone': "❌ Неверный формат!\n\nПожалуйста, введите правильный номер.\nНапример: +998901234567",
+        'invalid_phone': "❌ Неверный формат!\n\nПожалуйста, введите правильный номер.\nНапример: +99890XXXXXXX",
         'welcome_back': "👋 Добро пожаловать, {}!\n\nВы уже вошли в систему.",
         'logout_success': "✅ Вы успешно вышли из системы.\n\nНажмите /start чтобы войти снова.",
         'language_changed': "Язык успешно изменен!"
     },
     'en': {
         'welcome': "👋 Welcome!\n\nPlease choose your language:",
-        'send_phone': "📱 Enter your phone number\n\n💡 Example: +998901234567",
+        'send_phone': "📱 Enter your phone number\n\n💡 Example: +99890XXXXXXX",
         'send_password': "🔐 Enter your password:",
         'login_success': "✅ Welcome!\n\nYou have successfully logged in.",
         'login_failed': "❌ Error!\n\nInvalid phone number or password.\n\nPlease try again.",
@@ -192,7 +192,7 @@ TRANSLATIONS = {
         'contact_admin': "📨 Contact admin",
         'settings': "⚙️ Settings",
         'back': "🔙 Back",
-        'enter_new_phone': "📱 Enter new phone number:\n\n💡 Example: +998901234567",
+        'enter_new_phone': "📱 Enter new phone number:\n\n💡 Example: +99890XXXXXXX",
         'phone_updated': "✅ Number updated!\n\nYour new number has been saved.",
         'enter_appeal_title': "📝 Enter appeal title:\n\n💡 Short and clear",
         'enter_appeal_desc': "📄 Enter appeal text:\n\n💡 Describe in detail",
@@ -204,7 +204,7 @@ TRANSLATIONS = {
         'ru': "🇷🇺 Русский",
         'en': "🇬🇧 English",
         'user_info': "👤 Profile Information\n\n📱 Phone: {}\n🌐 Language: {}\n📅 Date: {}",
-        'invalid_phone': "❌ Invalid format!\n\nPlease enter correct phone number.\nExample: +998901234567",
+        'invalid_phone': "❌ Invalid format!\n\nPlease enter correct phone number.\nExample: +99890XXXXXXX",
         'welcome_back': "👋 Welcome back, {}!\n\nYou're already logged in.",
         'logout_success': "✅ You have successfully logged out.\n\nPress /start to login again.",
         'language_changed': "Language successfully changed!"
@@ -364,7 +364,7 @@ async def password_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     # Backend ga so'rov yuborish
     try:
-        login_url = f"{BACKEND_URL}/login"
+        login_url = f"{BACKEND_URL}/auth/login"
         payload = {
             'phoneNumber': phone,
             'password': password

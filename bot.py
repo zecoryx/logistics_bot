@@ -25,13 +25,64 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Holatlar
-(LANG_SELECT, PHONE, PASSWORD, MAIN_MENU, 
- CHANGE_PHONE, APPEAL_TITLE, APPEAL_DESC) = range(7)
+(LANG_SELECT, LOGIN_OR_RESET, PHONE, PASSWORD, MAIN_MENU, 
+ CHANGE_PHONE, APPEAL_TITLE, APPEAL_DESC,
+ FORGOT_PASSWORD_PHONE, FORGOT_PASSWORD_CODE, FORGOT_PASSWORD_NEW_PASSWORD,
+ FORGOT_PASSWORD_CONTACT) = range(12)
 
 # Sozlamalar .env dan
 BACKEND_URL = os.getenv("BACKEND_URL")
 ADMIN_GROUP_ID = os.getenv("ADMIN_GROUP_ID")
 BOT_TOKEN = os.getenv("BOT_TOKEN")
+
+# Helper funksiya: Response'ni xavfsiz parse qilish
+def safe_json_parse(response):
+    """Response'ni xavfsiz JSON formatiga o'tkazish"""
+    try:
+        if response.text:
+            # Agar HTML yoki boshqa format bo'lsa
+            if response.text.strip().startswith('<'):
+                return None
+            return response.json()
+    except Exception as e:
+        logger.error(f"JSON parse error: {e}, Response: {response.text[:200]}")
+        return None
+    return None
+
+# BACKEND_URL ni to'g'ri formatlash
+def get_backend_url(endpoint):
+    """Backend URL ni to'g'ri formatlash"""
+    if not BACKEND_URL:
+        return None
+    
+    # BACKEND_URL ni tozalash
+    base_url = BACKEND_URL.strip().rstrip('/')
+    
+    # URL formatini tekshirish va tuzatish
+    # Agar https:/ yoki http:/ bo'lsa (bir /), tuzatish
+    if base_url.startswith('https:/') and not base_url.startswith('https://'):
+        base_url = base_url.replace('https:/', 'https://', 1)
+    elif base_url.startswith('http:/') and not base_url.startswith('http://'):
+        base_url = base_url.replace('http:/', 'http://', 1)
+    elif not base_url.startswith('http://') and not base_url.startswith('https://'):
+        # Agar protocol yo'q bo'lsa, http:// qo'shamiz
+        base_url = 'http://' + base_url
+    
+    # Agar endpoint allaqachon / bilan boshlansa, olib tashlash
+    if endpoint.startswith('/'):
+        endpoint = endpoint[1:]
+    
+    # Agar base_url da /api bo'lsa, qo'shmaslik
+    if base_url.endswith('/api'):
+        return f"{base_url}/{endpoint}"
+    elif '/api/' in base_url:
+        return f"{base_url}/{endpoint}"
+    else:
+        # Agar /api yo'q bo'lsa, qo'shamiz
+        if endpoint.startswith('api/'):
+            return f"{base_url}/{endpoint}"
+        else:
+            return f"{base_url}/api/{endpoint}"
 
 # Database fayli
 DB_FILE = "users.db"
@@ -121,7 +172,7 @@ init_db()
 TRANSLATIONS = {
     'uz': {
         'welcome': "👋 Xush kelibsiz!\n\nIltimos, tilni tanlang:",
-        'send_phone': "📱 Ilovadan ro'yhatdan o'tgan telefon raqamingizni kiriting\n\n💡 Masalan: +99890XXXXXXX",
+        'send_phone': "📱 Ilovadan ro'yhatdan o'tgan telefon raqamingizni kiriting",
         'send_password': "🔐 Ilovadan ro'yhatdan o'tgan Parolingizni kiriting:",
         'login_success': "✅ Xush kelibsiz!\n\nSiz tizimga muvaffaqiyatli kirdingiz.",
         'login_failed': "❌ Xatolik!\n\nTelefon raqam yoki parol noto'g'ri.\n\nIltimos, qaytadan urinib ko'ring.",
@@ -132,7 +183,7 @@ TRANSLATIONS = {
         'contact_admin': "📨 Adminga murojaat",
         'settings': "⚙️ Sozlamalar",
         'back': "🔙 Orqaga",
-        'enter_new_phone': "📱 Yangi telefon raqamingizni kiriting:\n\n💡 Masalan: +99890XXXXXXX",
+        'enter_new_phone': "📱 Yangi telefon raqamingizni kiriting:",
         'phone_updated': "✅ Raqam yangilandi!\n\nYangi raqamingiz muvaffaqiyatli saqlandi.",
         'enter_appeal_title': "📝 Murojaat sarlavhasini kiriting:\n\n💡 Qisqa va aniq yozing",
         'enter_appeal_desc': "📄 Murojaat matnini kiriting:\n\n💡 Batafsil yozing",
@@ -144,14 +195,29 @@ TRANSLATIONS = {
         'ru': "🇷🇺 Русский",
         'en': "🇬🇧 English",
         'user_info': "👤 Profil ma'lumotlari\n\n📱 Telefon: {}\n🌐 Til: {}\n📅 Sana: {}",
-        'invalid_phone': "❌ Noto'g'ri format!\n\nIltimos, to'g'ri telefon raqam kiriting.\nMasalan: +99890XXXXXXX",
+        'invalid_phone': "❌ Noto'g'ri format!\n\nIltimos, to'g'ri telefon raqam kiriting.",
         'welcome_back': "👋 Xush kelibsiz, {}!\n\nSiz allaqachon tizimga kirgansiz.",
         'logout_success': "✅ Siz tizimdan muvaffaqiyatli chiqdingiz.\n\nQaytadan kirish uchun /start ni bosing.",
-        'language_changed': "Til muvaffaqiyatli o'zgartirildi!"
+        'language_changed': "Til muvaffaqiyatli o'zgartirildi!",
+        'forgot_password': "🔑 Parolni tiklash",
+        'forgot_password_phone': "📱 Parolni tiklash uchun telefon raqamingizni kiriting:",
+        'forgot_password_code_sent': "🔐 Sizning tasdiqlash kodingiz: <b>{}</b>\n\nKodni kiriting:",
+        'forgot_password_enter_code': "🔐 Tasdiqlash kodini kiriting:",
+        'forgot_password_code_verified': "✅ Kod tasdiqlandi!\n\nYangi parolingizni kiriting (kamida 6 ta belgi):",
+        'forgot_password_enter_new': "🔑 Yangi parolingizni kiriting (kamida 6 ta belgi):",
+        'forgot_password_success': "✅ Parol muvaffaqiyatli o'zgartirildi!\n\nEndi yangi parolingiz bilan kirishingiz mumkin.",
+        'forgot_password_error': "❌ Xatolik: {}",
+        'invalid_code': "❌ Noto'g'ri kod!\n\nIltimos, qaytadan urinib ko'ring.",
+        'password_too_short': "❌ Parol kamida 6 ta belgidan iborat bo'lishi kerak!",
+        'send_phone_contact': "📱 Telefon raqamni yuborish",
+        'forgot_password_welcome': "🔑 Parolni tiklash\n\nParolni tiklash uchun telefon raqamingizni yuboring:",
+        'login_or_reset': "🔐 Kirish yoki parolni tiklash\n\nKerakli bo'limni tanlang:",
+        'login': "🔐 Kirish",
+        'reset_password': "🔑 Parolni tiklash"
     },
     'ru': {
         'welcome': "👋 Добро пожаловать!\n\nПожалуйста, выберите язык:",
-        'send_phone': "📱 Введите ваш номер телефона\n\n💡 Например: +99890XXXXXXX",
+        'send_phone': "📱 Введите ваш номер телефона",
         'send_password': "🔐 Введите ваш пароль:",
         'login_success': "✅ Добро пожаловать!\n\nВы успешно вошли в систему.",
         'login_failed': "❌ Ошибка!\n\nНеверный номер телефона или пароль.\n\nПожалуйста, попробуйте снова.",
@@ -162,7 +228,7 @@ TRANSLATIONS = {
         'contact_admin': "📨 Связаться с админом",
         'settings': "⚙️ Настройки",
         'back': "🔙 Назад",
-        'enter_new_phone': "📱 Введите новый номер телефона:\n\n💡 Например: +99890XXXXXXX",
+        'enter_new_phone': "📱 Введите новый номер телефона:",
         'phone_updated': "✅ Номер обновлен!\n\nВаш новый номер успешно сохранен.",
         'enter_appeal_title': "📝 Введите заголовок обращения:\n\n💡 Кратко и ясно",
         'enter_appeal_desc': "📄 Введите текст обращения:\n\n💡 Подробно опишите вашу проблему",
@@ -174,14 +240,29 @@ TRANSLATIONS = {
         'ru': "🇷🇺 Русский",
         'en': "🇬🇧 English",
         'user_info': "👤 Информация профиля\n\n📱 Телефон: {}\n🌐 Язык: {}\n📅 Дата: {}",
-        'invalid_phone': "❌ Неверный формат!\n\nПожалуйста, введите правильный номер.\nНапример: +99890XXXXXXX",
+        'invalid_phone': "❌ Неверный формат!\n\nПожалуйста, введите правильный номер.",
         'welcome_back': "👋 Добро пожаловать, {}!\n\nВы уже вошли в систему.",
         'logout_success': "✅ Вы успешно вышли из системы.\n\nНажмите /start чтобы войти снова.",
-        'language_changed': "Язык успешно изменен!"
+        'language_changed': "Язык успешно изменен!",
+        'forgot_password': "🔑 Восстановить пароль",
+        'forgot_password_phone': "📱 Введите ваш номер телефона для восстановления пароля:",
+        'forgot_password_code_sent': "🔐 Ваш код подтверждения: <b>{}</b>\n\nВведите код:",
+        'forgot_password_enter_code': "🔐 Введите код подтверждения:",
+        'forgot_password_code_verified': "✅ Код подтвержден!\n\nВведите новый пароль (минимум 6 символов):",
+        'forgot_password_enter_new': "🔑 Введите новый пароль (минимум 6 символов):",
+        'forgot_password_success': "✅ Пароль успешно изменен!\n\nТеперь вы можете войти с новым паролем.",
+        'forgot_password_error': "❌ Ошибка: {}",
+        'invalid_code': "❌ Неверный код!\n\nПожалуйста, попробуйте снова.",
+        'password_too_short': "❌ Пароль должен содержать минимум 6 символов!",
+        'send_phone_contact': "📱 Отправить номер телефона",
+        'forgot_password_welcome': "🔑 Восстановление пароля\n\nОтправьте ваш номер телефона для восстановления пароля:",
+        'login_or_reset': "🔐 Вход или восстановление пароля\n\nВыберите нужный раздел:",
+        'login': "🔐 Вход",
+        'reset_password': "🔑 Восстановить пароль"
     },
     'en': {
         'welcome': "👋 Welcome!\n\nPlease choose your language:",
-        'send_phone': "📱 Enter your phone number\n\n💡 Example: +99890XXXXXXX",
+        'send_phone': "📱 Enter your phone number",
         'send_password': "🔐 Enter your password:",
         'login_success': "✅ Welcome!\n\nYou have successfully logged in.",
         'login_failed': "❌ Error!\n\nInvalid phone number or password.\n\nPlease try again.",
@@ -192,7 +273,7 @@ TRANSLATIONS = {
         'contact_admin': "📨 Contact admin",
         'settings': "⚙️ Settings",
         'back': "🔙 Back",
-        'enter_new_phone': "📱 Enter new phone number:\n\n💡 Example: +99890XXXXXXX",
+        'enter_new_phone': "📱 Enter new phone number:",
         'phone_updated': "✅ Number updated!\n\nYour new number has been saved.",
         'enter_appeal_title': "📝 Enter appeal title:\n\n💡 Short and clear",
         'enter_appeal_desc': "📄 Enter appeal text:\n\n💡 Describe in detail",
@@ -204,10 +285,25 @@ TRANSLATIONS = {
         'ru': "🇷🇺 Русский",
         'en': "🇬🇧 English",
         'user_info': "👤 Profile Information\n\n📱 Phone: {}\n🌐 Language: {}\n📅 Date: {}",
-        'invalid_phone': "❌ Invalid format!\n\nPlease enter correct phone number.\nExample: +99890XXXXXXX",
+        'invalid_phone': "❌ Invalid format!\n\nPlease enter correct phone number.",
         'welcome_back': "👋 Welcome back, {}!\n\nYou're already logged in.",
         'logout_success': "✅ You have successfully logged out.\n\nPress /start to login again.",
-        'language_changed': "Language successfully changed!"
+        'language_changed': "Language successfully changed!",
+        'forgot_password': "🔑 Reset password",
+        'forgot_password_phone': "📱 Enter your phone number to reset password:",
+        'forgot_password_code_sent': "🔐 Your verification code: <b>{}</b>\n\nEnter the code:",
+        'forgot_password_enter_code': "🔐 Enter verification code:",
+        'forgot_password_code_verified': "✅ Code verified!\n\nEnter your new password (minimum 6 characters):",
+        'forgot_password_enter_new': "🔑 Enter new password (minimum 6 characters):",
+        'forgot_password_success': "✅ Password successfully changed!\n\nYou can now login with your new password.",
+        'forgot_password_error': "❌ Error: {}",
+        'invalid_code': "❌ Invalid code!\n\nPlease try again.",
+        'password_too_short': "❌ Password must be at least 6 characters!",
+        'send_phone_contact': "📱 Send phone number",
+        'forgot_password_welcome': "🔑 Reset password\n\nSend your phone number to reset password:",
+        'login_or_reset': "🔐 Login or reset password\n\nSelect a section:",
+        'login': "🔐 Login",
+        'reset_password': "🔑 Reset password"
     }
 }
 
@@ -228,7 +324,7 @@ def get_main_menu_keyboard(lang):
     """Modern asosiy menyu"""
     keyboard = [
         [KeyboardButton(get_text(lang, 'profile')), KeyboardButton(get_text(lang, 'contact_admin'))],
-        [KeyboardButton(get_text(lang, 'change_phone'))],
+        [KeyboardButton(get_text(lang, 'change_phone')), KeyboardButton(get_text(lang, 'forgot_password'))],
         [KeyboardButton(get_text(lang, 'settings')), KeyboardButton(get_text(lang, 'logout'))]
     ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
@@ -237,6 +333,22 @@ def get_back_keyboard(lang):
     """Orqaga tugmasi"""
     keyboard = [[KeyboardButton(get_text(lang, 'back'))]]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+
+def get_phone_contact_keyboard(lang):
+    """Telefon raqamni yuborish tugmasi"""
+    keyboard = [
+        [KeyboardButton(get_text(lang, 'send_phone_contact'), request_contact=True)],
+        [KeyboardButton(get_text(lang, 'back'))]
+    ]
+    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True, one_time_keyboard=True)
+
+def get_login_or_reset_keyboard(lang):
+    """Kirish yoki parolni tiklash tugmalari"""
+    keyboard = [
+        [KeyboardButton(get_text(lang, 'login'))],
+        [KeyboardButton(get_text(lang, 'reset_password'))]
+    ]
+    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True, one_time_keyboard=True)
 
 def validate_phone(phone):
     """Telefon raqam formatini tekshirish"""
@@ -323,20 +435,54 @@ async def lang_select(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.info(f"User {update.effective_user.id} selected language: {lang}")
     
     await update.message.reply_text(
-        get_text(lang, 'send_phone'),
-        reply_markup=ReplyKeyboardRemove()
+        get_text(lang, 'login_or_reset'),
+        reply_markup=get_login_or_reset_keyboard(lang)
     )
-    return PHONE
+    return LOGIN_OR_RESET
+
+async def login_or_reset_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Kirish yoki parolni tiklash tanlash"""
+    text = update.message.text
+    lang = context.user_data.get('lang', 'uz')
+    user_id = update.effective_user.id
+    
+    if get_text(lang, 'login') in text or "🔐" in text and get_text(lang, 'reset_password') not in text:
+        # Kirish - Faqat contact orqali telefon raqam olish
+        await update.message.reply_text(
+            get_text(lang, 'send_phone'),
+            reply_markup=get_phone_contact_keyboard(lang)
+        )
+        return PHONE
+    elif get_text(lang, 'reset_password') in text or "🔑" in text:
+        # Parolni tiklash
+        await update.message.reply_text(
+            get_text(lang, 'forgot_password_welcome'),
+            reply_markup=get_phone_contact_keyboard(lang)
+        )
+        return FORGOT_PASSWORD_CONTACT
+    else:
+        await update.message.reply_text(
+            get_text(lang, 'login_or_reset'),
+            reply_markup=get_login_or_reset_keyboard(lang)
+        )
+        return LOGIN_OR_RESET
 
 async def phone_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Telefon raqam qabul qilish va validatsiya"""
-    phone = update.message.text.strip()
+    """Telefon raqam qabul qilish va validatsiya - Faqat contact orqali"""
     lang = context.user_data.get('lang', 'uz')
     
-    # Telefon raqam formatini tekshirish
-    if not validate_phone(phone):
-        await update.message.reply_text(get_text(lang, 'invalid_phone'))
+    # Faqat contact qabul qilish
+    if not update.message.contact:
+        # Agar contact emas, qayta so'rash
+        await update.message.reply_text(
+            "📱 Iltimos, telefon raqamingizni tugma orqali yuboring:",
+            reply_markup=get_phone_contact_keyboard(lang)
+        )
         return PHONE
+    
+    # Contact yuborilgan
+    phone = update.message.contact.phone_number
+    logger.info(f"User {update.effective_user.id} sent contact: {phone}")
     
     # Telefon raqamni normalize qilish
     if not phone.startswith('+'):
@@ -350,7 +496,10 @@ async def phone_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data['phone'] = phone
     logger.info(f"User {update.effective_user.id} entered phone: {phone}")
     
-    await update.message.reply_text(get_text(lang, 'send_password'))
+    await update.message.reply_text(
+        get_text(lang, 'send_password'),
+        reply_markup=ReplyKeyboardRemove()
+    )
     return PASSWORD
 
 async def password_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -364,7 +513,7 @@ async def password_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     # Backend ga so'rov yuborish
     try:
-        login_url = f"{BACKEND_URL}/auth/login"
+        login_url = get_backend_url("auth/login")
         payload = {
             'phoneNumber': phone,
             'password': password
@@ -475,6 +624,14 @@ async def main_menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=get_back_keyboard(lang)
         )
         return APPEAL_TITLE
+    
+    elif get_text(lang, 'forgot_password') in text or "🔑" in text:
+        # Parolni tiklash - Faqat contact orqali telefon raqam olish
+        await update.message.reply_text(
+            get_text(lang, 'forgot_password_welcome'),
+            reply_markup=get_phone_contact_keyboard(lang)
+        )
+        return FORGOT_PASSWORD_CONTACT
     
     elif get_text(lang, 'settings') in text or "⚙️" in text:
         # SOZLAMALAR: Faqat til tanlash menyusini ko'rsatamiz
@@ -671,6 +828,449 @@ async def appeal_desc_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
     
     return MAIN_MENU
 
+async def forgot_password_contact_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Parolni tiklash - telefon raqamni contact orqali qabul qilish - Faqat contact"""
+    lang = context.user_data.get('lang', 'uz')
+    
+    # Faqat contact qabul qilish
+    if not update.message.contact:
+        # Agar contact emas, text bo'lsa
+        text = update.message.text
+        
+        if get_text(lang, 'back') in text or "🔙" in text:
+            await update.message.reply_text(
+                get_text(lang, 'main_menu'),
+                reply_markup=get_main_menu_keyboard(lang)
+            )
+            return MAIN_MENU
+        
+        # Agar contact emas, qayta so'rash
+        await update.message.reply_text(
+            "📱 Iltimos, telefon raqamingizni tugma orqali yuboring:",
+            reply_markup=get_phone_contact_keyboard(lang)
+        )
+        return FORGOT_PASSWORD_CONTACT
+    
+    # Contact yuborilgan
+    phone = update.message.contact.phone_number
+    logger.info(f"User {update.effective_user.id} sent contact: {phone}")
+    
+    # Telefon raqamni normalize qilish
+    if not phone.startswith('+'):
+        if phone.startswith('998'):
+            phone = '+' + phone
+        elif phone.startswith('8'):
+            phone = '+998' + phone[1:]
+        else:
+            phone = '+998' + phone
+    
+    context.user_data['forgot_password_phone'] = phone
+    logger.info(f"User {update.effective_user.id} requested password reset for phone: {phone}")
+    
+    # Backend'dan kod olish
+    try:
+        # Backend URL ni tekshirish
+        if not BACKEND_URL:
+            logger.error("BACKEND_URL topilmadi! .env faylni tekshiring!")
+            await update.message.reply_text(
+                get_text(lang, 'connection_error'),
+                reply_markup=get_phone_contact_keyboard(lang)
+            )
+            return FORGOT_PASSWORD_CONTACT
+        
+        forgot_password_url = get_backend_url("auth/forgot-password")
+        payload = {
+            'phoneNumber': phone,
+            'source': 'bot'  # Bot'dan kelgan so'rov
+        }
+        
+        logger.info(f"Sending request to: {forgot_password_url}")
+        logger.info(f"Payload: {payload}")
+        
+        response = requests.post(
+            forgot_password_url,
+            json=payload,
+            headers={'Content-Type': 'application/json'},
+            timeout=10
+        )
+        
+        logger.info(f"Response status: {response.status_code}")
+        logger.info(f"Response body: {response.text}")
+        
+        if response.status_code == 200:
+            result = safe_json_parse(response)
+            if not result:
+                await update.message.reply_text(
+                    get_text(lang, 'connection_error'),
+                    reply_markup=get_back_keyboard(lang)
+                )
+                return FORGOT_PASSWORD_CODE
+            
+            if result.get('success'):
+                code = result.get('data', {}).get('code')
+                
+                if code:
+                    # Foydalanuvchiga kodni yuborish
+                    await update.message.reply_text(
+                        get_text(lang, 'forgot_password_code_sent').format(code),
+                        parse_mode='HTML',
+                        reply_markup=get_back_keyboard(lang)
+                    )
+                    context.user_data['forgot_password_code'] = code
+                    return FORGOT_PASSWORD_CODE
+                else:
+                    await update.message.reply_text(
+                        get_text(lang, 'forgot_password_error').format("Kod olinmadi"),
+                        reply_markup=get_phone_contact_keyboard(lang)
+                    )
+                    return FORGOT_PASSWORD_CONTACT
+            else:
+                error_msg = result.get('message', 'Noma\'lum xatolik')
+                await update.message.reply_text(
+                    get_text(lang, 'forgot_password_error').format(error_msg),
+                    reply_markup=get_phone_contact_keyboard(lang)
+                )
+                return FORGOT_PASSWORD_CONTACT
+        else:
+            # 502 Bad Gateway yoki boshqa server xatolari
+            error_data = safe_json_parse(response)
+            if error_data:
+                error_msg = error_data.get('message', 'Kod olishda xatolik')
+            else:
+                # HTML response yoki boshqa format
+                if response.status_code == 502:
+                    error_msg = "Server vaqtincha ishlamayapti (502 Bad Gateway)"
+                elif response.status_code >= 500:
+                    error_msg = f"Server xatosi ({response.status_code})"
+                else:
+                    error_msg = f"Xatolik ({response.status_code})"
+            
+            await update.message.reply_text(
+                get_text(lang, 'forgot_password_error').format(error_msg),
+                reply_markup=get_phone_contact_keyboard(lang)
+            )
+            return FORGOT_PASSWORD_CONTACT
+            
+    except Exception as e:
+        logger.error(f"Forgot password error for user {update.effective_user.id}: {str(e)}")
+        await update.message.reply_text(
+            get_text(lang, 'connection_error'),
+            reply_markup=get_phone_contact_keyboard(lang)
+        )
+        return FORGOT_PASSWORD_CONTACT
+
+async def forgot_password_phone_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Parolni tiklash - telefon raqam qabul qilish (asosiy menyudan)"""
+    text = update.message.text
+    lang = context.user_data.get('lang', 'uz')
+    
+    if get_text(lang, 'back') in text or "🔙" in text:
+        await update.message.reply_text(
+            get_text(lang, 'main_menu'),
+            reply_markup=get_main_menu_keyboard(lang)
+        )
+        return MAIN_MENU
+    
+    # Telefon raqam formatini tekshirish
+    phone = text.strip()
+    if not validate_phone(phone):
+        await update.message.reply_text(
+            get_text(lang, 'invalid_phone'),
+            reply_markup=get_back_keyboard(lang)
+        )
+        return FORGOT_PASSWORD_PHONE
+    
+    # Telefon raqamni normalize qilish
+    if not phone.startswith('+'):
+        if phone.startswith('998'):
+            phone = '+' + phone
+        elif phone.startswith('8'):
+            phone = '+998' + phone[1:]
+        else:
+            phone = '+998' + phone
+    
+    context.user_data['forgot_password_phone'] = phone
+    logger.info(f"User {update.effective_user.id} requested password reset for phone: {phone}")
+    
+    # Backend'dan kod olish
+    try:
+        forgot_password_url = get_backend_url("auth/forgot-password")
+        payload = {
+            'phoneNumber': phone,
+            'source': 'bot'  # Bot'dan kelgan so'rov
+        }
+        
+        logger.info(f"Sending request to: {forgot_password_url}")
+        logger.info(f"Payload: {payload}")
+        
+        response = requests.post(
+            forgot_password_url,
+            json=payload,
+            headers={'Content-Type': 'application/json'},
+            timeout=10
+        )
+        
+        logger.info(f"Response status: {response.status_code}")
+        logger.info(f"Response body: {response.text}")
+        
+        if response.status_code == 200:
+            result = safe_json_parse(response)
+            if not result:
+                await update.message.reply_text(
+                    get_text(lang, 'connection_error'),
+                    reply_markup=get_back_keyboard(lang)
+                )
+                return FORGOT_PASSWORD_CODE
+            
+            if result.get('success'):
+                code = result.get('data', {}).get('code')
+                
+                if code:
+                    # Foydalanuvchiga kodni yuborish
+                    await update.message.reply_text(
+                        get_text(lang, 'forgot_password_code_sent').format(code),
+                        parse_mode='HTML',
+                        reply_markup=get_back_keyboard(lang)
+                    )
+                    context.user_data['forgot_password_code'] = code
+                    return FORGOT_PASSWORD_CODE
+                else:
+                    await update.message.reply_text(
+                        get_text(lang, 'forgot_password_error').format("Kod olinmadi"),
+                        reply_markup=get_back_keyboard(lang)
+                    )
+                    return FORGOT_PASSWORD_PHONE
+            else:
+                error_msg = result.get('message', 'Noma\'lum xatolik')
+                await update.message.reply_text(
+                    get_text(lang, 'forgot_password_error').format(error_msg),
+                    reply_markup=get_back_keyboard(lang)
+                )
+                return FORGOT_PASSWORD_PHONE
+        else:
+            # 502 Bad Gateway yoki boshqa server xatolari
+            error_data = safe_json_parse(response)
+            if error_data:
+                error_msg = error_data.get('message', 'Kod olishda xatolik')
+            else:
+                # HTML response yoki boshqa format
+                if response.status_code == 502:
+                    error_msg = "Server vaqtincha ishlamayapti (502 Bad Gateway)"
+                elif response.status_code >= 500:
+                    error_msg = f"Server xatosi ({response.status_code})"
+                else:
+                    error_msg = f"Xatolik ({response.status_code})"
+            
+            await update.message.reply_text(
+                get_text(lang, 'forgot_password_error').format(error_msg),
+                reply_markup=get_back_keyboard(lang)
+            )
+            return FORGOT_PASSWORD_PHONE
+            
+    except Exception as e:
+        logger.error(f"Forgot password error for user {update.effective_user.id}: {str(e)}")
+        await update.message.reply_text(
+            get_text(lang, 'connection_error'),
+            reply_markup=get_back_keyboard(lang)
+        )
+        return FORGOT_PASSWORD_PHONE
+
+async def forgot_password_code_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Parolni tiklash - kodni tekshirish"""
+    text = update.message.text
+    lang = context.user_data.get('lang', 'uz')
+    phone = context.user_data.get('forgot_password_phone')
+    
+    if get_text(lang, 'back') in text or "🔙" in text:
+        await update.message.reply_text(
+            get_text(lang, 'main_menu'),
+            reply_markup=get_main_menu_keyboard(lang)
+        )
+        return MAIN_MENU
+    
+    code = text.strip()
+    logger.info(f"User {update.effective_user.id} verifying code: {code} for phone: {phone}")
+    
+    # Backend'da kodni tekshirish
+    try:
+        verify_code_url = get_backend_url("auth/verify-code")
+        payload = {
+            'phoneNumber': phone,
+            'code': code
+        }
+        
+        logger.info(f"Sending request to: {verify_code_url}")
+        logger.info(f"Payload: {payload}")
+        
+        response = requests.post(
+            verify_code_url,
+            json=payload,
+            headers={'Content-Type': 'application/json'},
+            timeout=10
+        )
+        
+        logger.info(f"Response status: {response.status_code}")
+        logger.info(f"Response body: {response.text}")
+        
+        if response.status_code == 200:
+            result = safe_json_parse(response)
+            if not result:
+                await update.message.reply_text(
+                    get_text(lang, 'connection_error'),
+                    reply_markup=get_back_keyboard(lang)
+                )
+                return FORGOT_PASSWORD_CODE
+            
+            if result.get('success'):
+                reset_token = result.get('data', {}).get('resetToken')
+                
+                if reset_token:
+                    context.user_data['reset_token'] = reset_token
+                    
+                    await update.message.reply_text(
+                        get_text(lang, 'forgot_password_code_verified'),
+                        reply_markup=get_back_keyboard(lang)
+                    )
+                    return FORGOT_PASSWORD_NEW_PASSWORD
+                else:
+                    await update.message.reply_text(
+                        get_text(lang, 'forgot_password_error').format("Token olinmadi"),
+                        reply_markup=get_back_keyboard(lang)
+                    )
+                    return FORGOT_PASSWORD_CODE
+            else:
+                await update.message.reply_text(
+                    get_text(lang, 'invalid_code'),
+                    reply_markup=get_back_keyboard(lang)
+                )
+                return FORGOT_PASSWORD_CODE
+        else:
+            # 502 Bad Gateway yoki boshqa server xatolari
+            error_data = safe_json_parse(response)
+            if error_data:
+                error_msg = error_data.get('message', 'Kod tekshirishda xatolik')
+            else:
+                # HTML response yoki boshqa format
+                if response.status_code == 502:
+                    error_msg = "Server vaqtincha ishlamayapti (502 Bad Gateway)"
+                elif response.status_code >= 500:
+                    error_msg = f"Server xatosi ({response.status_code})"
+                else:
+                    error_msg = f"Xatolik ({response.status_code})"
+            await update.message.reply_text(
+                get_text(lang, 'forgot_password_error').format(error_msg),
+                reply_markup=get_back_keyboard(lang)
+            )
+            return FORGOT_PASSWORD_CODE
+            
+    except Exception as e:
+        logger.error(f"Verify code error for user {update.effective_user.id}: {str(e)}")
+        await update.message.reply_text(
+            get_text(lang, 'connection_error'),
+            reply_markup=get_back_keyboard(lang)
+        )
+        return FORGOT_PASSWORD_CODE
+
+async def forgot_password_new_password_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Parolni tiklash - yangi parol qabul qilish"""
+    text = update.message.text
+    lang = context.user_data.get('lang', 'uz')
+    reset_token = context.user_data.get('reset_token')
+    
+    if get_text(lang, 'back') in text or "🔙" in text:
+        await update.message.reply_text(
+            get_text(lang, 'main_menu'),
+            reply_markup=get_main_menu_keyboard(lang)
+        )
+        return MAIN_MENU
+    
+    new_password = text.strip()
+    
+    # Parol uzunligini tekshirish
+    if len(new_password) < 6:
+        await update.message.reply_text(
+            get_text(lang, 'password_too_short'),
+            reply_markup=get_back_keyboard(lang)
+        )
+        return FORGOT_PASSWORD_NEW_PASSWORD
+    
+    logger.info(f"User {update.effective_user.id} resetting password")
+    
+    # Backend'da parolni tiklash
+    try:
+        reset_password_url = get_backend_url("auth/reset-password")
+        payload = {
+            'resetToken': reset_token,
+            'newPassword': new_password
+        }
+        
+        logger.info(f"Sending request to: {reset_password_url}")
+        logger.info(f"Payload: {{'resetToken': '***', 'newPassword': '***'}}")
+        
+        response = requests.post(
+            reset_password_url,
+            json=payload,
+            headers={'Content-Type': 'application/json'},
+            timeout=10
+        )
+        
+        logger.info(f"Response status: {response.status_code}")
+        logger.info(f"Response body: {response.text}")
+        
+        if response.status_code == 200:
+            result = safe_json_parse(response)
+            if not result:
+                await update.message.reply_text(
+                    get_text(lang, 'connection_error'),
+                    reply_markup=get_back_keyboard(lang)
+                )
+                return FORGOT_PASSWORD_CODE
+            
+            if result.get('success'):
+                # Foydalanuvchi ma'lumotlarini tozalash
+                context.user_data.pop('forgot_password_phone', None)
+                context.user_data.pop('forgot_password_code', None)
+                context.user_data.pop('reset_token', None)
+                
+                await update.message.reply_text(
+                    get_text(lang, 'forgot_password_success'),
+                    reply_markup=get_main_menu_keyboard(lang)
+                )
+                return MAIN_MENU
+            else:
+                error_msg = result.get('message', 'Parol tiklashda xatolik')
+                await update.message.reply_text(
+                    get_text(lang, 'forgot_password_error').format(error_msg),
+                    reply_markup=get_back_keyboard(lang)
+                )
+                return FORGOT_PASSWORD_NEW_PASSWORD
+        else:
+            # 502 Bad Gateway yoki boshqa server xatolari
+            error_data = safe_json_parse(response)
+            if error_data:
+                error_msg = error_data.get('message', 'Parol tiklashda xatolik')
+            else:
+                # HTML response yoki boshqa format
+                if response.status_code == 502:
+                    error_msg = "Server vaqtincha ishlamayapti (502 Bad Gateway)"
+                elif response.status_code >= 500:
+                    error_msg = f"Server xatosi ({response.status_code})"
+                else:
+                    error_msg = f"Xatolik ({response.status_code})"
+            await update.message.reply_text(
+                get_text(lang, 'forgot_password_error').format(error_msg),
+                reply_markup=get_back_keyboard(lang)
+            )
+            return FORGOT_PASSWORD_NEW_PASSWORD
+            
+    except Exception as e:
+        logger.error(f"Reset password error for user {update.effective_user.id}: {str(e)}")
+        await update.message.reply_text(
+            get_text(lang, 'connection_error'),
+            reply_markup=get_back_keyboard(lang)
+        )
+        return FORGOT_PASSWORD_NEW_PASSWORD
+
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Bekor qilish"""
     lang = context.user_data.get('lang', 'uz')
@@ -704,12 +1304,17 @@ def main():
         entry_points=[CommandHandler('start', start)],
         states={
             LANG_SELECT: [MessageHandler(filters.TEXT & ~filters.COMMAND, lang_select)],
-            PHONE: [MessageHandler(filters.TEXT & ~filters.COMMAND, phone_handler)],
+            LOGIN_OR_RESET: [MessageHandler(filters.TEXT & ~filters.COMMAND, login_or_reset_handler)],
+            PHONE: [MessageHandler(filters.CONTACT | (filters.TEXT & ~filters.COMMAND), phone_handler)],
             PASSWORD: [MessageHandler(filters.TEXT & ~filters.COMMAND, password_handler)],
             MAIN_MENU: [MessageHandler(filters.TEXT & ~filters.COMMAND, main_menu_handler)],
             CHANGE_PHONE: [MessageHandler(filters.TEXT & ~filters.COMMAND, change_phone_handler)],
             APPEAL_TITLE: [MessageHandler(filters.TEXT & ~filters.COMMAND, appeal_title_handler)],
             APPEAL_DESC: [MessageHandler(filters.TEXT & ~filters.COMMAND, appeal_desc_handler)],
+            FORGOT_PASSWORD_CONTACT: [MessageHandler(filters.CONTACT | (filters.TEXT & ~filters.COMMAND), forgot_password_contact_handler)],
+            FORGOT_PASSWORD_PHONE: [MessageHandler(filters.TEXT & ~filters.COMMAND, forgot_password_phone_handler)],
+            FORGOT_PASSWORD_CODE: [MessageHandler(filters.TEXT & ~filters.COMMAND, forgot_password_code_handler)],
+            FORGOT_PASSWORD_NEW_PASSWORD: [MessageHandler(filters.TEXT & ~filters.COMMAND, forgot_password_new_password_handler)],
         },
         fallbacks=[CommandHandler('cancel', cancel), CommandHandler('logout', logout_command)],
     )

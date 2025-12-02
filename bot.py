@@ -28,7 +28,8 @@ logger = logging.getLogger(__name__)
 (LANG_SELECT, LOGIN_OR_RESET, PHONE, PASSWORD, MAIN_MENU, 
  CHANGE_PHONE, APPEAL_TITLE, APPEAL_DESC,
  FORGOT_PASSWORD_PHONE, FORGOT_PASSWORD_CODE, FORGOT_PASSWORD_NEW_PASSWORD,
- FORGOT_PASSWORD_CONTACT) = range(12)
+ FORGOT_PASSWORD_CONTACT,
+ REGISTER_PHONE, REGISTER_CODE, REGISTER_DATA, LOGIN_CODE) = range(16)
 
 # Sozlamalar .env dan
 BACKEND_URL = os.getenv("BACKEND_URL")
@@ -172,8 +173,8 @@ init_db()
 TRANSLATIONS = {
     'uz': {
         'welcome': "👋 Xush kelibsiz!\n\nIltimos, tilni tanlang:",
-        'send_phone': "📱 Ilovadan ro'yhatdan o'tgan telefon raqamingizni kiriting",
-        'send_password': "🔐 Ilovadan ro'yhatdan o'tgan Parolingizni kiriting:",
+        'send_phone': "📱 Telefon raqamingizni yuboring:",
+        'send_password': "🔐 Parolingizni kiriting:",
         'login_success': "✅ Xush kelibsiz!\n\nSiz tizimga muvaffaqiyatli kirdingiz.",
         'login_failed': "❌ Xatolik!\n\nTelefon raqam yoki parol noto'g'ri.\n\nIltimos, qaytadan urinib ko'ring.",
         'connection_error': "⚠️ Serverga ulanishda xatolik!\n\nIltimos, keyinroq qayta urinib ko'ring.",
@@ -201,7 +202,7 @@ TRANSLATIONS = {
         'language_changed': "Til muvaffaqiyatli o'zgartirildi!",
         'forgot_password': "🔑 Parolni tiklash",
         'forgot_password_phone': "📱 Parolni tiklash uchun telefon raqamingizni kiriting:",
-        'forgot_password_code_sent': "🔐 Sizning tasdiqlash kodingiz: <b>{}</b>\n\nKodni kiriting:",
+        'forgot_password_code_sent': "✅ Kod yuborildi!\n\n🔐 Tasdiqlash kodingiz: <b>{}</b>\n\nKodni kiriting:",
         'forgot_password_enter_code': "🔐 Tasdiqlash kodini kiriting:",
         'forgot_password_code_verified': "✅ Kod tasdiqlandi!\n\nYangi parolingizni kiriting (kamida 6 ta belgi):",
         'forgot_password_enter_new': "🔑 Yangi parolingizni kiriting (kamida 6 ta belgi):",
@@ -213,11 +214,20 @@ TRANSLATIONS = {
         'forgot_password_welcome': "🔑 Parolni tiklash\n\nParolni tiklash uchun telefon raqamingizni yuboring:",
         'login_or_reset': "🔐 Kirish yoki parolni tiklash\n\nKerakli bo'limni tanlang:",
         'login': "🔐 Kirish",
-        'reset_password': "🔑 Parolni tiklash"
+        'register': "📝 Ro'yxatdan o'tish",
+        'reset_password': "🔑 Parolni tiklash",
+        'register_phone': "📝 Ro'yxatdan o'tish uchun telefon raqamingizni yuboring:",
+        'register_code_sent': "✅ Kod yuborildi!\n\n🔐 Tasdiqlash kodingiz: <b>{}</b>\n\nKodni kiriting:",
+        'register_enter_code': "🔐 Tasdiqlash kodini kiriting:",
+        'register_enter_data': "📝 Ro'yxatdan o'tish ma'lumotlari\n\nQuyidagi formatda kiriting:\n\n<b>Ism|Parol|Role</b>\n\nMasalan:\n<b>John Doe|password123|user</b>",
+        'register_success': "✅ Muvaffaqiyatli ro'yxatdan o'tdingiz!",
+        'login_code_sent': "✅ Kod yuborildi!\n\n🔐 Tasdiqlash kodingiz: <b>{}</b>\n\nKodni kiriting:",
+        'login_enter_code': "🔐 Tasdiqlash kodini kiriting:",
+        'admin_login_success': "✅ Admin sifatida muvaffaqiyatli kirildingiz!"
     },
     'ru': {
         'welcome': "👋 Добро пожаловать!\n\nПожалуйста, выберите язык:",
-        'send_phone': "📱 Введите ваш номер телефона",
+        'send_phone': "📱 Отправьте ваш номер телефона:",
         'send_password': "🔐 Введите ваш пароль:",
         'login_success': "✅ Добро пожаловать!\n\nВы успешно вошли в систему.",
         'login_failed': "❌ Ошибка!\n\nНеверный номер телефона или пароль.\n\nПожалуйста, попробуйте снова.",
@@ -246,7 +256,7 @@ TRANSLATIONS = {
         'language_changed': "Язык успешно изменен!",
         'forgot_password': "🔑 Восстановить пароль",
         'forgot_password_phone': "📱 Введите ваш номер телефона для восстановления пароля:",
-        'forgot_password_code_sent': "🔐 Ваш код подтверждения: <b>{}</b>\n\nВведите код:",
+        'forgot_password_code_sent': "✅ Код отправлен!\n\n🔐 Ваш код подтверждения: <b>{}</b>\n\nВведите код:",
         'forgot_password_enter_code': "🔐 Введите код подтверждения:",
         'forgot_password_code_verified': "✅ Код подтвержден!\n\nВведите новый пароль (минимум 6 символов):",
         'forgot_password_enter_new': "🔑 Введите новый пароль (минимум 6 символов):",
@@ -258,11 +268,20 @@ TRANSLATIONS = {
         'forgot_password_welcome': "🔑 Восстановление пароля\n\nОтправьте ваш номер телефона для восстановления пароля:",
         'login_or_reset': "🔐 Вход или восстановление пароля\n\nВыберите нужный раздел:",
         'login': "🔐 Вход",
-        'reset_password': "🔑 Восстановить пароль"
+        'register': "📝 Регистрация",
+        'reset_password': "🔑 Восстановить пароль",
+        'register_phone': "📝 Отправьте ваш номер телефона для регистрации:",
+        'register_code_sent': "✅ Код отправлен!\n\n🔐 Ваш код подтверждения: <b>{}</b>\n\nВведите код:",
+        'register_enter_code': "🔐 Введите код подтверждения:",
+        'register_enter_data': "📝 Данные для регистрации\n\nВведите в следующем формате:\n\n<b>Имя|Пароль|Роль</b>\n\nНапример:\n<b>Иван Иванов|password123|user</b>",
+        'register_success': "✅ Вы успешно зарегистрировались!",
+        'login_code_sent': "✅ Код отправлен!\n\n🔐 Ваш код подтверждения: <b>{}</b>\n\nВведите код:",
+        'login_enter_code': "🔐 Введите код подтверждения:",
+        'admin_login_success': "✅ Вы успешно вошли как администратор!"
     },
     'en': {
         'welcome': "👋 Welcome!\n\nPlease choose your language:",
-        'send_phone': "📱 Enter your phone number",
+        'send_phone': "📱 Send your phone number:",
         'send_password': "🔐 Enter your password:",
         'login_success': "✅ Welcome!\n\nYou have successfully logged in.",
         'login_failed': "❌ Error!\n\nInvalid phone number or password.\n\nPlease try again.",
@@ -291,7 +310,7 @@ TRANSLATIONS = {
         'language_changed': "Language successfully changed!",
         'forgot_password': "🔑 Reset password",
         'forgot_password_phone': "📱 Enter your phone number to reset password:",
-        'forgot_password_code_sent': "🔐 Your verification code: <b>{}</b>\n\nEnter the code:",
+        'forgot_password_code_sent': "✅ Code sent!\n\n🔐 Your verification code: <b>{}</b>\n\nEnter the code:",
         'forgot_password_enter_code': "🔐 Enter verification code:",
         'forgot_password_code_verified': "✅ Code verified!\n\nEnter your new password (minimum 6 characters):",
         'forgot_password_enter_new': "🔑 Enter new password (minimum 6 characters):",
@@ -303,7 +322,16 @@ TRANSLATIONS = {
         'forgot_password_welcome': "🔑 Reset password\n\nSend your phone number to reset password:",
         'login_or_reset': "🔐 Login or reset password\n\nSelect a section:",
         'login': "🔐 Login",
-        'reset_password': "🔑 Reset password"
+        'register': "📝 Register",
+        'reset_password': "🔑 Reset password",
+        'register_phone': "📝 Send your phone number for registration:",
+        'register_code_sent': "✅ Code sent!\n\n🔐 Your verification code: <b>{}</b>\n\nEnter the code:",
+        'register_enter_code': "🔐 Enter verification code:",
+        'register_enter_data': "📝 Registration data\n\nEnter in the following format:\n\n<b>Name|Password|Role</b>\n\nExample:\n<b>John Doe|password123|user</b>",
+        'register_success': "✅ You have successfully registered!",
+        'login_code_sent': "✅ Code sent!\n\n🔐 Your verification code: <b>{}</b>\n\nEnter the code:",
+        'login_enter_code': "🔐 Enter verification code:",
+        'admin_login_success': "✅ You have successfully logged in as admin!"
     }
 }
 
@@ -345,7 +373,7 @@ def get_phone_contact_keyboard(lang):
 def get_login_or_reset_keyboard(lang):
     """Kirish yoki parolni tiklash tugmalari"""
     keyboard = [
-        [KeyboardButton(get_text(lang, 'login'))],
+        [KeyboardButton(get_text(lang, 'login')), KeyboardButton(get_text(lang, 'register'))],
         [KeyboardButton(get_text(lang, 'reset_password'))]
     ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True, one_time_keyboard=True)
@@ -446,13 +474,20 @@ async def login_or_reset_handler(update: Update, context: ContextTypes.DEFAULT_T
     lang = context.user_data.get('lang', 'uz')
     user_id = update.effective_user.id
     
-    if get_text(lang, 'login') in text or "🔐" in text and get_text(lang, 'reset_password') not in text:
+    if get_text(lang, 'login') in text or ("🔐" in text and get_text(lang, 'reset_password') not in text and get_text(lang, 'register') not in text):
         # Kirish - Faqat contact orqali telefon raqam olish
         await update.message.reply_text(
             get_text(lang, 'send_phone'),
             reply_markup=get_phone_contact_keyboard(lang)
         )
         return PHONE
+    elif get_text(lang, 'register') in text or "📝" in text:
+        # Ro'yxatdan o'tish
+        await update.message.reply_text(
+            get_text(lang, 'register_phone'),
+            reply_markup=get_phone_contact_keyboard(lang)
+        )
+        return REGISTER_PHONE
     elif get_text(lang, 'reset_password') in text or "🔑" in text:
         # Parolni tiklash
         await update.message.reply_text(
@@ -503,24 +538,144 @@ async def phone_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return PASSWORD
 
 async def password_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Parol tekshirish va backend bilan bog'lanish"""
+    """Parol qabul qilish va login kod so'rash"""
     password = update.message.text
     phone = context.user_data.get('phone')
     lang = context.user_data.get('lang', 'uz')
     user_id = update.effective_user.id
     
+    context.user_data['password'] = password
     logger.info(f"User {user_id} attempting login with phone: {phone}")
     
-    # Backend ga so'rov yuborish
+    # Backend'ga login kod so'rash
     try:
-        login_url = get_backend_url("auth/login")
+        send_code_url = get_backend_url("auth/send-login-code")
         payload = {
             'phoneNumber': phone,
             'password': password
         }
         
+        logger.info(f"Sending request to: {send_code_url}")
+        logger.info(f"Payload: {{'phoneNumber': '{phone}', 'password': '***'}}")
+        
+        response = requests.post(
+            send_code_url,
+            json=payload,
+            headers={'Content-Type': 'application/json'},
+            timeout=10
+        )
+        
+        logger.info(f"Response status: {response.status_code}")
+        logger.info(f"Response body: {response.text[:500]}")
+        
+        if response.status_code == 200:
+            result = safe_json_parse(response)
+            if not result:
+                await update.message.reply_text(
+                    get_text(lang, 'connection_error'),
+                    reply_markup=get_lang_keyboard()
+                )
+                return LANG_SELECT
+            
+            data = result.get('data', {})
+            
+            # Admin bo'lsa, kod kerak emas
+            if data.get('skipCode'):
+                # Admin to'g'ridan-to'g'ri kira oladi
+                user_data = {
+                    'user_id': user_id,
+                    'phone': data.get('phoneNumber', phone),
+                    'full_name': data.get('fullName', 'User'),
+                    'role': data.get('role', 'admin'),
+                    'balans': data.get('balans', '0'),
+                    'access_token': data.get('accessToken'),
+                    'refresh_token': data.get('refreshToken'),
+                    'lang': lang,
+                    'logged_in': True
+                }
+                
+                # Database ga saqlash
+                save_user(user_data)
+                context.user_data.update(user_data)
+                
+                logger.info(f"Admin {user_id} logged in successfully as {data.get('fullName')}")
+                
+                # Profil ma'lumotlarini tayyorlash
+                profile_msg = get_profile_message(user_data, lang)
+                
+                # Muvaffaqiyatli login xabari
+                welcome_msg = f"✅ {get_text(lang, 'admin_login_success')}\n\n{profile_msg}"
+                
+                await update.message.reply_text(
+                    welcome_msg,
+                    reply_markup=get_main_menu_keyboard(lang)
+                )
+                return MAIN_MENU
+            else:
+                # User bo'lsa, kod kerak
+                code = data.get('code')
+                if code:
+                    await update.message.reply_text(
+                        get_text(lang, 'login_code_sent').format(code),
+                        parse_mode='HTML',
+                        reply_markup=get_back_keyboard(lang)
+                    )
+                    context.user_data['login_code'] = code
+                    return LOGIN_CODE
+                else:
+                    await update.message.reply_text(
+                        get_text(lang, 'login_failed'),
+                        reply_markup=get_lang_keyboard()
+                    )
+                    return LANG_SELECT
+        else:
+            error_data = safe_json_parse(response)
+            if error_data:
+                error_msg = error_data.get('message', 'Login xatolik')
+            else:
+                error_msg = f"Xatolik ({response.status_code})"
+            
+            logger.warning(f"Login failed for user {user_id}: {error_msg}")
+            await update.message.reply_text(
+                get_text(lang, 'login_failed'),
+                reply_markup=get_lang_keyboard()
+            )
+            return LANG_SELECT
+            
+    except Exception as e:
+        logger.error(f"Login error for user {user_id}: {str(e)}")
+        await update.message.reply_text(get_text(lang, 'connection_error'))
+        return LANG_SELECT
+
+async def login_code_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Login kodni tekshirish"""
+    text = update.message.text
+    lang = context.user_data.get('lang', 'uz')
+    phone = context.user_data.get('phone')
+    password = context.user_data.get('password')
+    user_id = update.effective_user.id
+    
+    if get_text(lang, 'back') in text or "🔙" in text:
+        await update.message.reply_text(
+            get_text(lang, 'login_or_reset'),
+            reply_markup=get_login_or_reset_keyboard(lang)
+        )
+        return LOGIN_OR_RESET
+    
+    code = text.strip()
+    logger.info(f"User {user_id} verifying login code: {code} for phone: {phone}")
+    
+    # Backend'ga login qilish (kod bilan)
+    try:
+        login_url = get_backend_url("auth/login")
+        payload = {
+            'phoneNumber': phone,
+            'password': password,
+            'code': code
+        }
+        
         logger.info(f"Sending request to: {login_url}")
-        logger.info(f"Payload: {payload}")
+        logger.info(f"Payload: {{'phoneNumber': '{phone}', 'password': '***', 'code': '{code}'}}")
         
         response = requests.post(
             login_url,
@@ -530,12 +685,18 @@ async def password_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         
         logger.info(f"Response status: {response.status_code}")
-        logger.info(f"Response body: {response.text}")
+        logger.info(f"Response body: {response.text[:500]}")
         
         if response.status_code == 200:
-            result = response.json()
+            result = safe_json_parse(response)
+            if not result:
+                await update.message.reply_text(
+                    get_text(lang, 'connection_error'),
+                    reply_markup=get_back_keyboard(lang)
+                )
+                return LOGIN_CODE
             
-            if result.get('success') and result.get('code') == 200:
+            if result.get('success'):
                 data = result.get('data', {})
                 
                 # User ma'lumotlarini saqlash
@@ -553,8 +714,6 @@ async def password_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 
                 # Database ga saqlash
                 save_user(user_data)
-                
-                # Context user_data ni yangilash
                 context.user_data.update(user_data)
                 
                 logger.info(f"User {user_id} logged in successfully as {data.get('fullName')}")
@@ -571,24 +730,294 @@ async def password_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 )
                 return MAIN_MENU
             else:
-                logger.warning(f"Login failed for user {user_id}: {result.get('message')}")
                 await update.message.reply_text(
-                    get_text(lang, 'login_failed'),
-                    reply_markup=get_lang_keyboard()
+                    get_text(lang, 'invalid_code'),
+                    reply_markup=get_back_keyboard(lang)
                 )
-                return LANG_SELECT
+                return LOGIN_CODE
         else:
-            logger.warning(f"Login failed for user {user_id}: HTTP {response.status_code}")
+            error_data = safe_json_parse(response)
+            if error_data:
+                error_msg = error_data.get('message', 'Kod tekshirishda xatolik')
+            else:
+                error_msg = f"Xatolik ({response.status_code})"
+            
             await update.message.reply_text(
-                get_text(lang, 'login_failed'),
-                reply_markup=get_lang_keyboard()
+                get_text(lang, 'forgot_password_error').format(error_msg),
+                reply_markup=get_back_keyboard(lang)
             )
-            return LANG_SELECT
+            return LOGIN_CODE
             
     except Exception as e:
-        logger.error(f"Login error for user {user_id}: {str(e)}")
-        await update.message.reply_text(get_text(lang, 'connection_error'))
-        return LANG_SELECT
+        logger.error(f"Login code error for user {user_id}: {str(e)}")
+        await update.message.reply_text(
+            get_text(lang, 'connection_error'),
+            reply_markup=get_back_keyboard(lang)
+        )
+        return LOGIN_CODE
+
+async def register_phone_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Register - telefon raqam qabul qilish"""
+    lang = context.user_data.get('lang', 'uz')
+    
+    # Faqat contact qabul qilish
+    if not update.message.contact:
+        text = update.message.text
+        
+        if get_text(lang, 'back') in text or "🔙" in text:
+            await update.message.reply_text(
+                get_text(lang, 'login_or_reset'),
+                reply_markup=get_login_or_reset_keyboard(lang)
+            )
+            return LOGIN_OR_RESET
+        
+        await update.message.reply_text(
+            "📱 Iltimos, telefon raqamingizni tugma orqali yuboring:",
+            reply_markup=get_phone_contact_keyboard(lang)
+        )
+        return REGISTER_PHONE
+    
+    # Contact yuborilgan
+    phone = update.message.contact.phone_number
+    logger.info(f"User {update.effective_user.id} sent contact for register: {phone}")
+    
+    # Telefon raqamni normalize qilish
+    if not phone.startswith('+'):
+        if phone.startswith('998'):
+            phone = '+' + phone
+        elif phone.startswith('8'):
+            phone = '+998' + phone[1:]
+        else:
+            phone = '+998' + phone
+    
+    context.user_data['register_phone'] = phone
+    
+    # Backend'ga kod so'rash
+    try:
+        send_code_url = get_backend_url("auth/send-register-code")
+        payload = {
+            'phoneNumber': phone,
+            'source': 'register'
+        }
+        
+        logger.info(f"Sending request to: {send_code_url}")
+        logger.info(f"Payload: {payload}")
+        
+        response = requests.post(
+            send_code_url,
+            json=payload,
+            headers={'Content-Type': 'application/json'},
+            timeout=10
+        )
+        
+        logger.info(f"Response status: {response.status_code}")
+        logger.info(f"Response body: {response.text[:500]}")
+        
+        if response.status_code == 200:
+            result = safe_json_parse(response)
+            if not result:
+                await update.message.reply_text(
+                    get_text(lang, 'connection_error'),
+                    reply_markup=get_phone_contact_keyboard(lang)
+                )
+                return REGISTER_PHONE
+            
+            if result.get('success'):
+                code = result.get('data', {}).get('code')
+                if code:
+                    await update.message.reply_text(
+                        get_text(lang, 'register_code_sent').format(code),
+                        parse_mode='HTML',
+                        reply_markup=get_back_keyboard(lang)
+                    )
+                    context.user_data['register_code'] = code
+                    return REGISTER_CODE
+                else:
+                    await update.message.reply_text(
+                        get_text(lang, 'forgot_password_error').format("Kod olinmadi"),
+                        reply_markup=get_phone_contact_keyboard(lang)
+                    )
+                    return REGISTER_PHONE
+            else:
+                error_msg = result.get('message', 'Noma\'lum xatolik')
+                await update.message.reply_text(
+                    get_text(lang, 'forgot_password_error').format(error_msg),
+                    reply_markup=get_phone_contact_keyboard(lang)
+                )
+                return REGISTER_PHONE
+        else:
+            error_data = safe_json_parse(response)
+            if error_data:
+                error_msg = error_data.get('message', 'Kod olishda xatolik')
+            else:
+                error_msg = f"Xatolik ({response.status_code})"
+            
+            await update.message.reply_text(
+                get_text(lang, 'forgot_password_error').format(error_msg),
+                reply_markup=get_phone_contact_keyboard(lang)
+            )
+            return REGISTER_PHONE
+            
+    except Exception as e:
+        logger.error(f"Register code error: {str(e)}")
+        await update.message.reply_text(
+            get_text(lang, 'connection_error'),
+            reply_markup=get_phone_contact_keyboard(lang)
+        )
+        return REGISTER_PHONE
+
+async def register_code_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Register - kodni qabul qilish"""
+    text = update.message.text
+    lang = context.user_data.get('lang', 'uz')
+    
+    if get_text(lang, 'back') in text or "🔙" in text:
+        await update.message.reply_text(
+            get_text(lang, 'register_phone'),
+            reply_markup=get_phone_contact_keyboard(lang)
+        )
+        return REGISTER_PHONE
+    
+    code = text.strip()
+    context.user_data['register_code'] = code
+    
+    await update.message.reply_text(
+        get_text(lang, 'register_enter_data'),
+        parse_mode='HTML',
+        reply_markup=get_back_keyboard(lang)
+    )
+    return REGISTER_DATA
+
+async def register_data_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Register - ism, parol, rol qabul qilish"""
+    text = update.message.text
+    lang = context.user_data.get('lang', 'uz')
+    user_id = update.effective_user.id
+    phone = context.user_data.get('register_phone')
+    code = context.user_data.get('register_code')
+    
+    if get_text(lang, 'back') in text or "🔙" in text:
+        await update.message.reply_text(
+            get_text(lang, 'register_enter_code'),
+            reply_markup=get_back_keyboard(lang)
+        )
+        return REGISTER_CODE
+    
+    # Format: Ism|Parol|Role
+    parts = text.split('|')
+    if len(parts) != 3:
+        await update.message.reply_text(
+            get_text(lang, 'register_enter_data'),
+            parse_mode='HTML',
+            reply_markup=get_back_keyboard(lang)
+        )
+        return REGISTER_DATA
+    
+    full_name = parts[0].strip()
+    password = parts[1].strip()
+    role = parts[2].strip().lower()
+    
+    if not full_name or not password or not role:
+        await update.message.reply_text(
+            get_text(lang, 'register_enter_data'),
+            parse_mode='HTML',
+            reply_markup=get_back_keyboard(lang)
+        )
+        return REGISTER_DATA
+    
+    # Backend'ga register qilish
+    try:
+        register_url = get_backend_url("auth/register")
+        payload = {
+            'fullName': full_name,
+            'phoneNumber': phone,
+            'password': password,
+            'role': role,
+            'code': code
+        }
+        
+        logger.info(f"Sending request to: {register_url}")
+        logger.info(f"Payload: {{'fullName': '{full_name}', 'phoneNumber': '{phone}', 'role': '{role}', 'code': '{code}'}}")
+        
+        response = requests.post(
+            register_url,
+            json=payload,
+            headers={'Content-Type': 'application/json'},
+            timeout=10
+        )
+        
+        logger.info(f"Response status: {response.status_code}")
+        logger.info(f"Response body: {response.text[:500]}")
+        
+        if response.status_code == 200 or response.status_code == 201:
+            result = safe_json_parse(response)
+            if not result:
+                await update.message.reply_text(
+                    get_text(lang, 'connection_error'),
+                    reply_markup=get_back_keyboard(lang)
+                )
+                return REGISTER_DATA
+            
+            if result.get('success'):
+                data = result.get('data', {})
+                
+                # User ma'lumotlarini saqlash
+                user_data = {
+                    'user_id': user_id,
+                    'phone': data.get('phoneNumber', phone),
+                    'full_name': data.get('fullName', full_name),
+                    'role': data.get('role', role),
+                    'balans': data.get('balans', '0'),
+                    'access_token': data.get('accessToken'),
+                    'refresh_token': data.get('refreshToken'),
+                    'lang': lang,
+                    'logged_in': True
+                }
+                
+                # Database ga saqlash
+                save_user(user_data)
+                context.user_data.update(user_data)
+                
+                logger.info(f"User {user_id} registered successfully as {full_name}")
+                
+                # Profil ma'lumotlarini tayyorlash
+                profile_msg = get_profile_message(user_data, lang)
+                
+                # Muvaffaqiyatli register xabari
+                welcome_msg = f"✅ {get_text(lang, 'register_success')}\n\n{profile_msg}"
+                
+                await update.message.reply_text(
+                    welcome_msg,
+                    reply_markup=get_main_menu_keyboard(lang)
+                )
+                return MAIN_MENU
+            else:
+                error_msg = result.get('message', 'Register xatolik')
+                await update.message.reply_text(
+                    get_text(lang, 'forgot_password_error').format(error_msg),
+                    reply_markup=get_back_keyboard(lang)
+                )
+                return REGISTER_DATA
+        else:
+            error_data = safe_json_parse(response)
+            if error_data:
+                error_msg = error_data.get('message', 'Register xatolik')
+            else:
+                error_msg = f"Xatolik ({response.status_code})"
+            
+            await update.message.reply_text(
+                get_text(lang, 'forgot_password_error').format(error_msg),
+                reply_markup=get_back_keyboard(lang)
+            )
+            return REGISTER_DATA
+            
+    except Exception as e:
+        logger.error(f"Register error: {str(e)}")
+        await update.message.reply_text(
+            get_text(lang, 'connection_error'),
+            reply_markup=get_back_keyboard(lang)
+        )
+        return REGISTER_DATA
 
 async def main_menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Asosiy menyu handler"""
@@ -706,10 +1135,10 @@ async def change_phone_handler(update: Update, context: ContextTypes.DEFAULT_TYP
     
     if get_text(lang, 'back') in text or "🔙" in text:
         await update.message.reply_text(
-            get_text(lang, 'main_menu'),
-            reply_markup=get_main_menu_keyboard(lang)
+            get_text(lang, 'login_or_reset'),
+            reply_markup=get_login_or_reset_keyboard(lang)
         )
-        return MAIN_MENU
+        return LOGIN_OR_RESET
     
     # Yangi raqamni validatsiya qilish
     if not validate_phone(text):
@@ -751,10 +1180,10 @@ async def appeal_title_handler(update: Update, context: ContextTypes.DEFAULT_TYP
     
     if get_text(lang, 'back') in text or "🔙" in text:
         await update.message.reply_text(
-            get_text(lang, 'main_menu'),
-            reply_markup=get_main_menu_keyboard(lang)
+            get_text(lang, 'login_or_reset'),
+            reply_markup=get_login_or_reset_keyboard(lang)
         )
-        return MAIN_MENU
+        return LOGIN_OR_RESET
     
     context.user_data['appeal_title'] = text
     await update.message.reply_text(
@@ -771,10 +1200,10 @@ async def appeal_desc_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
     
     if get_text(lang, 'back') in text or "🔙" in text:
         await update.message.reply_text(
-            get_text(lang, 'main_menu'),
-            reply_markup=get_main_menu_keyboard(lang)
+            get_text(lang, 'login_or_reset'),
+            reply_markup=get_login_or_reset_keyboard(lang)
         )
-        return MAIN_MENU
+        return LOGIN_OR_RESET
     
     # Database dan yangi ma'lumotlarni olish
     db_user = get_user(user_id)
@@ -966,10 +1395,10 @@ async def forgot_password_phone_handler(update: Update, context: ContextTypes.DE
     
     if get_text(lang, 'back') in text or "🔙" in text:
         await update.message.reply_text(
-            get_text(lang, 'main_menu'),
-            reply_markup=get_main_menu_keyboard(lang)
+            get_text(lang, 'login_or_reset'),
+            reply_markup=get_login_or_reset_keyboard(lang)
         )
-        return MAIN_MENU
+        return LOGIN_OR_RESET
     
     # Telefon raqam formatini tekshirish
     phone = text.strip()
@@ -1083,10 +1512,10 @@ async def forgot_password_code_handler(update: Update, context: ContextTypes.DEF
     
     if get_text(lang, 'back') in text or "🔙" in text:
         await update.message.reply_text(
-            get_text(lang, 'main_menu'),
-            reply_markup=get_main_menu_keyboard(lang)
+            get_text(lang, 'login_or_reset'),
+            reply_markup=get_login_or_reset_keyboard(lang)
         )
-        return MAIN_MENU
+        return LOGIN_OR_RESET
     
     code = text.strip()
     logger.info(f"User {update.effective_user.id} verifying code: {code} for phone: {phone}")
@@ -1179,10 +1608,10 @@ async def forgot_password_new_password_handler(update: Update, context: ContextT
     
     if get_text(lang, 'back') in text or "🔙" in text:
         await update.message.reply_text(
-            get_text(lang, 'main_menu'),
-            reply_markup=get_main_menu_keyboard(lang)
+            get_text(lang, 'login_or_reset'),
+            reply_markup=get_login_or_reset_keyboard(lang)
         )
-        return MAIN_MENU
+        return LOGIN_OR_RESET
     
     new_password = text.strip()
     
@@ -1307,6 +1736,10 @@ def main():
             LOGIN_OR_RESET: [MessageHandler(filters.TEXT & ~filters.COMMAND, login_or_reset_handler)],
             PHONE: [MessageHandler(filters.CONTACT | (filters.TEXT & ~filters.COMMAND), phone_handler)],
             PASSWORD: [MessageHandler(filters.TEXT & ~filters.COMMAND, password_handler)],
+            LOGIN_CODE: [MessageHandler(filters.TEXT & ~filters.COMMAND, login_code_handler)],
+            REGISTER_PHONE: [MessageHandler(filters.CONTACT | (filters.TEXT & ~filters.COMMAND), register_phone_handler)],
+            REGISTER_CODE: [MessageHandler(filters.TEXT & ~filters.COMMAND, register_code_handler)],
+            REGISTER_DATA: [MessageHandler(filters.TEXT & ~filters.COMMAND, register_data_handler)],
             MAIN_MENU: [MessageHandler(filters.TEXT & ~filters.COMMAND, main_menu_handler)],
             CHANGE_PHONE: [MessageHandler(filters.TEXT & ~filters.COMMAND, change_phone_handler)],
             APPEAL_TITLE: [MessageHandler(filters.TEXT & ~filters.COMMAND, appeal_title_handler)],

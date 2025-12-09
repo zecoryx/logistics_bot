@@ -42,6 +42,22 @@ WEBHOOK_PORT = int(os.getenv("WEBHOOK_PORT", "3001"))
 # User sessions - phone -> chat_id mapping (webhook uchun)
 user_sessions = {}  # {phone_number: chat_id}
 
+def normalize_phone_for_comparison(phone: str) -> str:
+    """Telefon raqamni normalize qilish (solishtirish uchun)"""
+    if not phone:
+        return ""
+    
+    # Faqat raqamlarni olish
+    digits = ''.join(filter(str.isdigit, phone))
+    
+    # Agar +998 bilan boshlanmasa, qo'shamiz
+    if digits.startswith('998'):
+        return '+998' + digits[3:]  # +998901234567
+    elif digits.startswith('8'):
+        return '+998' + digits[1:]  # +998901234567
+    else:
+        return '+998' + digits  # +998901234567
+
 # Flask app for webhook
 flask_app = Flask(__name__)
 
@@ -1797,38 +1813,43 @@ def receive_code_webhook():
         logger.info(f"📦 Webhook data: {data}")
         logger.info(f"📋 User sessions: {user_sessions}")
         
-        # Telefon raqamni normalize qilish
-        if phone_number:
-            normalized_phone = phone_number.replace(' ', '').replace('-', '')
-            logger.info(f"🔍 Normalized phone: {normalized_phone}")
-            
-            # User'ni topish (phone_number bo'yicha)
-            chat_id = None
-            for phone, chat in user_sessions.items():
-                phone_clean = phone.replace(' ', '').replace('-', '')
-                logger.info(f"🔍 Comparing: {phone_clean} with {normalized_phone}")
-                # Oxirgi 9 raqamni solishtirish
-                if phone_clean.endswith(normalized_phone[-9:]) or \
-                   normalized_phone.endswith(phone_clean[-9:]) or \
-                   phone_clean == normalized_phone:
-                    chat_id = chat
-                    logger.info(f"✅ User topildi: {phone} -> {chat_id}")
-                    break
-            
-            if chat_id:
-                # Telegram Bot API'ga to'g'ridan-to'g'ri HTTP so'rov yuborish
-                # Event loop muammosini oldini olish uchun
-                try:
-                    send_code_to_user_sync(chat_id, code)
-                    return jsonify({"status": "ok", "message": "Kod yuborildi"}), 200
-                except Exception as e:
-                    logger.error(f"❌ Kod yuborish xatolik: {str(e)}")
-                    return jsonify({"status": "error", "message": str(e)}), 500
-            else:
-                logger.warning(f"⚠️ User topilmadi: {phone_number}")
-                return jsonify({"status": "error", "message": "User topilmadi"}), 404
+        if not phone_number:
+            logger.warning("⚠️ phoneNumber yo'q!")
+            return jsonify({"status": "error", "message": "Telefon raqam kiritilmagan"}), 400
         
-        return jsonify({"status": "error", "message": "Telefon raqam kiritilmagan"}), 400
+        # Telefon raqamni normalize qilish (solishtirish uchun)
+        normalized_webhook_phone = normalize_phone_for_comparison(phone_number)
+        logger.info(f"🔍 Normalized webhook phone: {normalized_webhook_phone}")
+        
+        # User'ni topish (phone_number bo'yicha)
+        chat_id = None
+        for phone, chat in user_sessions.items():
+            normalized_session_phone = normalize_phone_for_comparison(phone)
+            logger.info(f"🔍 Comparing: {normalized_session_phone} with {normalized_webhook_phone}")
+            
+            # To'liq telefon raqamni solishtirish (faqat aniq mos kelganda)
+            if normalized_session_phone == normalized_webhook_phone:
+                chat_id = chat
+                logger.info(f"✅ User topildi: {phone} -> {chat_id}")
+                break
+        
+        if chat_id:
+            # Telegram Bot API'ga to'g'ridan-to'g'ri HTTP so'rov yuborish
+            try:
+                send_code_to_user_sync(chat_id, code, phone_number)
+                return jsonify({"status": "ok", "message": "Kod yuborildi"}), 200
+            except Exception as e:
+                logger.error(f"❌ Kod yuborish xatolik: {str(e)}")
+                return jsonify({"status": "error", "message": str(e)}), 500
+        else:
+            logger.warning(f"⚠️ User topilmadi: {phone_number} (normalized: {normalized_webhook_phone})")
+            logger.info(f"📋 Mavjud session'lar: {list(user_sessions.keys())}")
+            return jsonify({
+                "status": "error", 
+                "message": f"User topilmadi: {phone_number}",
+                "normalized": normalized_webhook_phone,
+                "available_sessions": list(user_sessions.keys())
+            }), 404
         
     except Exception as e:
         logger.error(f"❌ Webhook xatolik: {str(e)}")
@@ -1836,7 +1857,7 @@ def receive_code_webhook():
         logger.error(traceback.format_exc())
         return jsonify({"status": "error", "message": str(e)}), 500
 
-def send_code_to_user_sync(chat_id: int, code: str):
+def send_code_to_user_sync(chat_id: int, code: str, phone_number: str = None):
     """Foydalanuvchiga kodni yuborish (sync, event loop muammosiz)"""
     try:
         if not BOT_TOKEN:
@@ -1844,6 +1865,8 @@ def send_code_to_user_sync(chat_id: int, code: str):
             return
         
         message = f"🔐 Sizning tasdiqlash kodingiz: <b>{code}</b>"
+        if phone_number:
+            message += f"\n\n📱 Telefon: {phone_number}"
         
         # Telegram Bot API'ga to'g'ridan-to'g'ri HTTP so'rov
         url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
@@ -1865,7 +1888,7 @@ def send_code_to_user_sync(chat_id: int, code: str):
         response = requests.post(url, json=payload, timeout=10)
         
         if response.status_code == 200:
-            logger.info(f"✅ Kod yuborildi: chat_id={chat_id}, code={code}")
+            logger.info(f"✅ Kod yuborildi: chat_id={chat_id}, code={code}, phone={phone_number}")
         else:
             logger.error(f"❌ Telegram API xatolik: {response.status_code} - {response.text}")
             

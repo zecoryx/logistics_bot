@@ -13,6 +13,9 @@ from telegram.ext import (
 )
 import requests
 from datetime import datetime
+import threading
+import asyncio
+from flask import Flask, request, jsonify
 
 # .env faylni yuklash
 load_dotenv()
@@ -25,15 +28,25 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Holatlar
-(LANG_SELECT, MAIN_CHOICE, GET_CODE_MENU, CODE_PHONE, CODE_VERIFY, MAIN_MENU, 
+(LANG_SELECT, MAIN_CHOICE, GET_CODE_MENU, CODE_PHONE, CODE_VERIFY, LOGIN_CODE, MAIN_MENU, 
  CHANGE_PHONE, APPEAL_TITLE, APPEAL_DESC,
  FORGOT_PASSWORD_CODE, FORGOT_PASSWORD_NEW_PASSWORD,
- REGISTER_DATA, LOGIN_PASSWORD) = range(13)
+ REGISTER_DATA, LOGIN_PASSWORD) = range(14)
 
 # Sozlamalar .env dan
 BACKEND_URL = os.getenv("BACKEND_URL")
 ADMIN_GROUP_ID = os.getenv("ADMIN_GROUP_ID")
 BOT_TOKEN = os.getenv("BOT_TOKEN")
+WEBHOOK_PORT = int(os.getenv("WEBHOOK_PORT", "3001"))
+
+# User sessions - phone -> chat_id mapping (webhook uchun)
+user_sessions = {}  # {phone_number: chat_id}
+
+# Flask app for webhook
+flask_app = Flask(__name__)
+
+# Telegram bot application (global variable, will be set in main())
+telegram_application = None
 
 # Helper funksiya: Response'ni xavfsiz parse qilish
 def safe_json_parse(response):
@@ -494,20 +507,14 @@ async def main_choice_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
     text = update.message.text
     lang = context.user_data.get('lang', 'uz')
     
-    if get_text(lang, 'login') in text or "🔐" in text:
-        # Kirish - Parol so'rash
+    # "Kirish" yoki "Kodni olish" - ikkalasi ham bir xil (kod so'rash)
+    if get_text(lang, 'login') in text or get_text(lang, 'get_code') in text or "🔐" in text or "📱" in text:
+        # Telefon raqam so'rash
         await update.message.reply_text(
             get_text(lang, 'send_phone'),
             reply_markup=get_phone_contact_keyboard(lang)
         )
-        return CODE_PHONE  # Telefon raqam olish uchun
-    elif get_text(lang, 'get_code') in text or "📱" in text:
-        # Kodni olish menyusi
-        await update.message.reply_text(
-            get_text(lang, 'get_code_menu'),
-            reply_markup=get_code_menu_keyboard(lang)
-        )
-        return GET_CODE_MENU
+        return CODE_PHONE
     else:
         await update.message.reply_text(
             get_text(lang, 'main_choice'),
@@ -567,19 +574,12 @@ async def code_phone_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
         text = update.message.text
         
         if get_text(lang, 'back') in text or "🔙" in text:
-            code_action = context.user_data.get('code_action')
-            if code_action:
-                await update.message.reply_text(
-                    get_text(lang, 'get_code_menu'),
-                    reply_markup=get_code_menu_keyboard(lang)
-                )
-                return GET_CODE_MENU
-            else:
-                await update.message.reply_text(
-                    get_text(lang, 'main_choice'),
-                    reply_markup=get_main_choice_keyboard(lang)
-                )
-                return MAIN_CHOICE
+            # Orqaga - asosiy menyuga qaytish
+            await update.message.reply_text(
+                get_text(lang, 'main_choice'),
+                reply_markup=get_main_choice_keyboard(lang)
+            )
+            return MAIN_CHOICE
         
         await update.message.reply_text(
             "📱 Iltimos, telefon raqamingizni tugma orqali yuboring:",
@@ -602,32 +602,20 @@ async def code_phone_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
     
     context.user_data['phone'] = phone
     
-    # Agar "Kirish" tugmasi bosilgan bo'lsa (code_action yo'q), parol so'rash
-    code_action = context.user_data.get('code_action')
-    if not code_action:
-        # "Kirish" tugmasi - parol so'rash
-        await update.message.reply_text(
-            get_text(lang, 'send_password'),
-            reply_markup=ReplyKeyboardRemove()
-        )
-        return LOGIN_PASSWORD
+    # User session'ni saqlash (phone -> chat_id)
+    chat_id = update.effective_chat.id
+    user_sessions[phone] = chat_id
+    # Telefon raqamni turli formatlarda saqlash
+    phone_clean = phone.replace(' ', '').replace('-', '')
+    user_sessions[phone_clean] = chat_id
+    logger.info(f"User session saved: {phone} -> {chat_id}")
     
-    # "Kodni olish" tugmasi - backend'ga kod so'rash
+    # Backend'ga kod so'rash (POST /api/auth/send-code)
     try:
-        if code_action == 'forgot':
-            # Forgot password uchun kod
-            send_code_url = get_backend_url("auth/forgot-password")
-            payload = {
-                'phoneNumber': phone,
-                'source': 'bot'
-            }
-        else:
-            # Login yoki Register uchun kod
-            send_code_url = get_backend_url("auth/send-code")
-            payload = {
-                'phoneNumber': phone,
-                'action': code_action  # 'login' yoki 'register'
-            }
+        send_code_url = get_backend_url("auth/send-code")
+        payload = {
+            'phoneNumber': phone
+        }
         
         logger.info(f"Sending request to: {send_code_url}")
         logger.info(f"Payload: {payload}")
@@ -652,22 +640,14 @@ async def code_phone_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
                 return CODE_PHONE
             
             if result.get('success'):
-                code = result.get('data', {}).get('code')
-                if code:
-                    context.user_data['code'] = code
-                    
-                    await update.message.reply_text(
-                        get_text(lang, 'login_code_sent').format(code),
-                        parse_mode='HTML',
-                        reply_markup=get_back_keyboard(lang)
-                    )
-                    return CODE_VERIFY
-                else:
-                    await update.message.reply_text(
-                        get_text(lang, 'forgot_password_error').format("Kod olinmadi"),
-                        reply_markup=get_phone_contact_keyboard(lang)
-                    )
-                    return CODE_PHONE
+                # Backend kodni yaratadi va database'ga saqlaydi
+                # Backend kodni bot'ga Telegram API orqali yuboradi (webhook)
+                # Response'da kod yo'q - xavfsizlik uchun
+                # Bot webhook orqali kodni oladi va foydalanuvchiga ko'rsatadi
+                # Kod allaqachon webhook orqali yuboriladi, shuning uchun qo'shimcha xabar kerak emas
+                # LOGIN_CODE state'ga o'tamiz - kod webhook orqali keladi va ko'rsatiladi
+                # "Orqaga" tugmasi bilan asosiy menyuga qaytish imkoniyati
+                return LOGIN_CODE
             else:
                 error_msg = result.get('message', 'Noma\'lum xatolik')
                 await update.message.reply_text(
@@ -800,166 +780,27 @@ async def login_password_handler(update: Update, context: ContextTypes.DEFAULT_T
         return MAIN_CHOICE
 
 async def code_verify_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Kodni tekshirish handler"""
+    """Kodni kiritganda - faqat asosiy menyuga qaytish (verify qilmaydi)"""
     text = update.message.text
     lang = context.user_data.get('lang', 'uz')
-    phone = context.user_data.get('phone')
-    code_action = context.user_data.get('code_action')
     user_id = update.effective_user.id
     
     if get_text(lang, 'back') in text or "🔙" in text:
         await update.message.reply_text(
-            get_text(lang, 'get_code_menu'),
-            reply_markup=get_code_menu_keyboard(lang)
+            get_text(lang, 'main_choice'),
+            reply_markup=get_main_choice_keyboard(lang)
         )
-        return GET_CODE_MENU
+        return MAIN_CHOICE
     
+    # Kodni kiritganda, faqat asosiy menyuga qaytish (verify qilmaydi)
     code = text.strip()
-    logger.info(f"User {user_id} verifying code: {code} for action: {code_action}")
+    logger.info(f"User {user_id} entered code: {code} (not verifying, returning to main menu)")
     
-    try:
-        if code_action == 'forgot':
-            # Forgot password - kodni tekshirish
-            verify_url = get_backend_url("auth/verify-code")
-            payload = {
-                'phoneNumber': phone,
-                'code': code
-            }
-        elif code_action == 'register':
-            # Register - kodni tekshirish va keyin ma'lumotlarni so'rash
-            verify_url = get_backend_url("auth/verify-code")
-            payload = {
-                'phoneNumber': phone,
-                'code': code
-            }
-        else:
-            # Login - kodni tekshirish va login qilish
-            verify_url = get_backend_url("auth/verify-code-auth")
-            payload = {
-                'phoneNumber': phone,
-                'code': code
-            }
-        
-        logger.info(f"Sending request to: {verify_url}")
-        logger.info(f"Payload: {payload}")
-        
-        response = requests.post(
-            verify_url,
-            json=payload,
-            headers={'Content-Type': 'application/json'},
-            timeout=10
-        )
-        
-        logger.info(f"Response status: {response.status_code}")
-        logger.info(f"Response body: {response.text[:500]}")
-        
-        if response.status_code == 200:
-            result = safe_json_parse(response)
-            if not result:
-                await update.message.reply_text(
-                    get_text(lang, 'connection_error'),
-                    reply_markup=get_back_keyboard(lang)
-                )
-                return CODE_VERIFY
-            
-            if result.get('success'):
-                if code_action == 'forgot':
-                    # Forgot password - reset_token ni saqlash va yangi parol so'rash
-                    reset_token = result.get('data', {}).get('resetToken')
-                    if reset_token:
-                        context.user_data['reset_token'] = reset_token
-                    
-                    await update.message.reply_text(
-                        get_text(lang, 'forgot_password_new_password'),
-                        reply_markup=get_back_keyboard(lang)
-                    )
-                    return FORGOT_PASSWORD_NEW_PASSWORD
-                elif code_action == 'register':
-                    # Register - ma'lumotlarni so'rash
-                    await update.message.reply_text(
-                        get_text(lang, 'register_enter_data'),
-                        parse_mode='HTML',
-                        reply_markup=get_back_keyboard(lang)
-                    )
-                    context.user_data['verified_code'] = code
-                    return REGISTER_DATA
-                else:
-                    # Login - to'g'ridan-to'g'ri login qilish
-                    # verify-code-auth dan keyin login qilish
-                    login_url = get_backend_url("auth/login")
-                    login_payload = {
-                        'phoneNumber': phone,
-                        'code': code
-                    }
-                    
-                    login_response = requests.post(
-                        login_url,
-                        json=login_payload,
-                        headers={'Content-Type': 'application/json'},
-                        timeout=10
-                    )
-                    
-                    if login_response.status_code == 200:
-                        login_result = safe_json_parse(login_response)
-                        if login_result and login_result.get('success'):
-                            data = login_result.get('data', {})
-                            
-                            user_data = {
-                                'user_id': user_id,
-                                'phone': data.get('phoneNumber', phone),
-                                'full_name': data.get('fullName', 'User'),
-                                'role': data.get('role', 'user'),
-                                'balans': data.get('balans', '0'),
-                                'access_token': data.get('accessToken'),
-                                'refresh_token': data.get('refreshToken'),
-                                'lang': lang,
-                                'logged_in': True
-                            }
-                            
-                            save_user(user_data)
-                            context.user_data.update(user_data)
-                            
-                            profile_msg = get_profile_message(user_data, lang)
-                            welcome_msg = f"✅ {get_text(lang, 'login_success')}\n\n{profile_msg}"
-                            
-                            await update.message.reply_text(
-                                welcome_msg,
-                                reply_markup=get_main_menu_keyboard(lang)
-                            )
-                            return MAIN_MENU
-                    
-                    await update.message.reply_text(
-                        get_text(lang, 'login_failed'),
-                        reply_markup=get_back_keyboard(lang)
-                    )
-                    return CODE_VERIFY
-            else:
-                error_msg = result.get('message', 'Kod noto\'g\'ri')
-                await update.message.reply_text(
-                    get_text(lang, 'invalid_code'),
-                    reply_markup=get_back_keyboard(lang)
-                )
-                return CODE_VERIFY
-        else:
-            error_data = safe_json_parse(response)
-            if error_data:
-                error_msg = error_data.get('message', 'Kod tekshirishda xatolik')
-            else:
-                error_msg = f"Xatolik ({response.status_code})"
-            
-            await update.message.reply_text(
-                get_text(lang, 'forgot_password_error').format(error_msg),
-                reply_markup=get_back_keyboard(lang)
-            )
-            return CODE_VERIFY
-            
-    except Exception as e:
-        logger.error(f"Code verify error for user {user_id}: {str(e)}")
-        await update.message.reply_text(
-            get_text(lang, 'connection_error'),
-            reply_markup=get_back_keyboard(lang)
-        )
-        return CODE_VERIFY
+    await update.message.reply_text(
+        get_text(lang, 'main_choice'),
+        reply_markup=get_main_choice_keyboard(lang)
+    )
+    return MAIN_CHOICE
 
 async def register_phone_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Register - telefon raqam qabul qilish"""
@@ -1929,13 +1770,120 @@ async def logout_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     return ConversationHandler.END
 
+# Flask Webhook Handler - Backend'dan kod kelganda
+@flask_app.route('/webhook/code', methods=['POST', 'GET'])
+def receive_code_webhook():
+    """Backend'dan kod kelganda webhook"""
+    try:
+        # GET request - test uchun
+        if request.method == 'GET':
+            return jsonify({
+                "status": "ok",
+                "message": "Webhook server ishlamoqda",
+                "user_sessions": len(user_sessions),
+                "sessions": user_sessions
+            }), 200
+        
+        # POST request - kod qabul qilish
+        data = request.json
+        if not data:
+            logger.warning("⚠️ Webhook'da data yo'q!")
+            return jsonify({"status": "error", "message": "Data yo'q"}), 400
+        
+        phone_number = data.get('phoneNumber')
+        code = data.get('code')
+        
+        logger.info(f"📩 Webhook qabul qilindi: {phone_number} - {code}")
+        logger.info(f"📦 Webhook data: {data}")
+        logger.info(f"📋 User sessions: {user_sessions}")
+        
+        # Telefon raqamni normalize qilish
+        if phone_number:
+            normalized_phone = phone_number.replace(' ', '').replace('-', '')
+            logger.info(f"🔍 Normalized phone: {normalized_phone}")
+            
+            # User'ni topish (phone_number bo'yicha)
+            chat_id = None
+            for phone, chat in user_sessions.items():
+                phone_clean = phone.replace(' ', '').replace('-', '')
+                logger.info(f"🔍 Comparing: {phone_clean} with {normalized_phone}")
+                # Oxirgi 9 raqamni solishtirish
+                if phone_clean.endswith(normalized_phone[-9:]) or \
+                   normalized_phone.endswith(phone_clean[-9:]) or \
+                   phone_clean == normalized_phone:
+                    chat_id = chat
+                    logger.info(f"✅ User topildi: {phone} -> {chat_id}")
+                    break
+            
+            if chat_id:
+                # Telegram Bot API'ga to'g'ridan-to'g'ri HTTP so'rov yuborish
+                # Event loop muammosini oldini olish uchun
+                try:
+                    send_code_to_user_sync(chat_id, code)
+                    return jsonify({"status": "ok", "message": "Kod yuborildi"}), 200
+                except Exception as e:
+                    logger.error(f"❌ Kod yuborish xatolik: {str(e)}")
+                    return jsonify({"status": "error", "message": str(e)}), 500
+            else:
+                logger.warning(f"⚠️ User topilmadi: {phone_number}")
+                return jsonify({"status": "error", "message": "User topilmadi"}), 404
+        
+        return jsonify({"status": "error", "message": "Telefon raqam kiritilmagan"}), 400
+        
+    except Exception as e:
+        logger.error(f"❌ Webhook xatolik: {str(e)}")
+        import traceback
+        logger.error(traceback.format_exc())
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+def send_code_to_user_sync(chat_id: int, code: str):
+    """Foydalanuvchiga kodni yuborish (sync, event loop muammosiz)"""
+    try:
+        if not BOT_TOKEN:
+            logger.error("❌ BOT_TOKEN topilmadi!")
+            return
+        
+        message = f"🔐 Sizning tasdiqlash kodingiz: <b>{code}</b>"
+        
+        # Telegram Bot API'ga to'g'ridan-to'g'ri HTTP so'rov
+        url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+        
+        # "Orqaga" tugmasi bilan yuborish
+        keyboard = {
+            "keyboard": [[{"text": "🔙 Orqaga"}]],
+            "resize_keyboard": True,
+            "one_time_keyboard": False
+        }
+        
+        payload = {
+            "chat_id": chat_id,
+            "text": message,
+            "parse_mode": "HTML",
+            "reply_markup": keyboard
+        }
+        
+        response = requests.post(url, json=payload, timeout=10)
+        
+        if response.status_code == 200:
+            logger.info(f"✅ Kod yuborildi: chat_id={chat_id}, code={code}")
+        else:
+            logger.error(f"❌ Telegram API xatolik: {response.status_code} - {response.text}")
+            
+    except Exception as e:
+        logger.error(f"❌ Kod yuborish xatolik: {str(e)}")
+        import traceback
+        logger.error(traceback.format_exc())
+
 def main():
     """Botni ishga tushirish"""
+    global telegram_application
+    
     if not BOT_TOKEN:
         logger.error("BOT_TOKEN topilmadi! .env faylni tekshiring!")
         return
     
-    application = Application.builder().token(BOT_TOKEN).build()
+    telegram_application = Application.builder().token(BOT_TOKEN).build()
+    application = telegram_application
     
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler('start', start)],
@@ -1945,6 +1893,7 @@ def main():
             GET_CODE_MENU: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_code_menu_handler)],
             CODE_PHONE: [MessageHandler(filters.CONTACT | (filters.TEXT & ~filters.COMMAND), code_phone_handler)],
             CODE_VERIFY: [MessageHandler(filters.TEXT & ~filters.COMMAND, code_verify_handler)],
+            LOGIN_CODE: [MessageHandler(filters.TEXT & ~filters.COMMAND, code_verify_handler)],
             LOGIN_PASSWORD: [MessageHandler(filters.TEXT & ~filters.COMMAND, login_password_handler)],
             REGISTER_DATA: [MessageHandler(filters.TEXT & ~filters.COMMAND, register_data_handler)],
             MAIN_MENU: [MessageHandler(filters.TEXT & ~filters.COMMAND, main_menu_handler)],
@@ -1959,9 +1908,17 @@ def main():
     
     application.add_handler(conv_handler)
     
+    # Flask server'ni background'da ishga tushirish
+    flask_thread = threading.Thread(
+        target=lambda: flask_app.run(host='0.0.0.0', port=WEBHOOK_PORT, debug=False)
+    )
+    flask_thread.daemon = True
+    flask_thread.start()
+    
     logger.info("✅ Bot muvaffaqiyatli ishga tushdi!")
     logger.info(f"📡 Backend URL: {BACKEND_URL}")
     logger.info(f"📨 Admin Group ID: {ADMIN_GROUP_ID}")
+    logger.info(f"🌐 Webhook server: http://0.0.0.0:{WEBHOOK_PORT}/webhook/code")
     
     application.run_polling(allowed_updates=Update.ALL_TYPES)
 
